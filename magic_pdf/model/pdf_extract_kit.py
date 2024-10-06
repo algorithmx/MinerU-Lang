@@ -1,7 +1,7 @@
 from loguru import logger
 import os
 import time
-
+import typing
 from magic_pdf.libs.Constants import *
 from magic_pdf.model.model_list import AtomicModel
 
@@ -74,9 +74,10 @@ def layout_model_init(weight, config_file, device):
     return model
 
 
-def ocr_model_init(show_log: bool = False, det_db_box_thresh=0.3):
-    model = ModifiedPaddleOCR(show_log=show_log, det_db_box_thresh=det_db_box_thresh)
-    return model
+def ocr_model_init(lang: str = "ch", show_log: bool = False, det_db_box_thresh=0.3):
+    return ModifiedPaddleOCR(
+        lang=lang, show_log=show_log, det_db_box_thresh=det_db_box_thresh
+    )
 
 
 class MathDataset(Dataset):
@@ -133,6 +134,7 @@ def atom_model_init(model_name: str, **kwargs):
         )
     elif model_name == AtomicModel.OCR:
         atom_model = ocr_model_init(
+            kwargs.get("lang", "ch"),
             kwargs.get("ocr_show_log"),
             kwargs.get("det_db_box_thresh")
         )
@@ -225,12 +227,13 @@ class CustomPEKModel:
         )
         # 初始化ocr
         if self.apply_ocr:
-
+            self.ocr_lang = kwargs.get("ocr_lang", "ch")
             # self.ocr_model = ModifiedPaddleOCR(show_log=show_log, det_db_box_thresh=0.3)
             self.ocr_model = atom_model_manager.get_atom_model(
                 atom_model_name=AtomicModel.OCR,
                 ocr_show_log=show_log,
-                det_db_box_thresh=0.3
+                det_db_box_thresh=0.3,
+                lang = self.ocr_lang
             )
         # init table model
         if self.apply_table:
@@ -247,14 +250,18 @@ class CustomPEKModel:
 
         logger.info('DocAnalysis init done!')
 
-    def __call__(self, image):
+    def score_statistics(self, layout_res):
+        scores = [l['score'] for l in layout_res if 'text' in l and 'score' in l]
+        return np.percentile(scores, [0, 25, 50, 75, 100])
+
+    def __call__(self, image: np.ndarray):
 
         latex_filling_list = []
         mf_image_list = []
 
         # layout检测
         layout_start = time.time()
-        layout_res = self.layout_model(image, ignore_catids=[])
+        layout_res = self.layout_model(image, ignore_catids=[]) #TODO typing? 
         layout_cost = round(time.time() - layout_start, 2)
         logger.info(f"layout detection cost: {layout_cost}")
 
@@ -370,6 +377,8 @@ class CustomPEKModel:
 
             ocr_cost = round(time.time() - ocr_start, 2)
             logger.info(f"ocr cost: {ocr_cost}")
+            score_stat = self.score_statistics(layout_res)
+            logger.debug(f"ocr score statistics: Min: {score_stat[0]:.2f}, Max: {score_stat[-1]:.2f}, Avg: {score_stat[2]:.2f}, Q1: {score_stat[1]:.2f}, Q3: {score_stat[-2]:.2f}")
 
         # 表格识别 table recognition
         if self.apply_table:

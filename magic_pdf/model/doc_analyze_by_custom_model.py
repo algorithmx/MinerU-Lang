@@ -1,5 +1,5 @@
 import time
-
+import typing
 import fitz
 import numpy as np
 from loguru import logger
@@ -23,30 +23,32 @@ def remove_duplicates_dicts(lst):
     return unique_dicts
 
 
-def load_images_from_pdf(pdf_bytes: bytes, dpi=200) -> list:
+class ImagePixmap(typing.NamedTuple):
+    img: np.ndarray
+    width: int
+    height: int
+
+def process_pdf_pages(doc):
     try:
         from PIL import Image
     except ImportError:
         logger.error("Pillow not installed, please install by pip.")
         exit(1)
-
     images = []
-    with fitz.open("pdf", pdf_bytes) as doc:
-        for index in range(0, doc.page_count):
-            page = doc[index]
-            mat = fitz.Matrix(dpi / 72, dpi / 72)
-            pm = page.get_pixmap(matrix=mat, alpha=False)
+    for index in range(doc.page_count):
+        page = doc[index]
+        # Use the original page resolution and upscale by factor of 2
+        pm = page.get_pixmap(matrix=fitz.Matrix(4, 4), alpha=False)
 
-            # If the width or height exceeds 9000 after scaling, do not scale further.
-            if pm.width > 9000 or pm.height > 9000:
-                pm = page.get_pixmap(matrix=fitz.Matrix(1, 1), alpha=False)
-
-            img = Image.frombytes("RGB", (pm.width, pm.height), pm.samples)
-            img = np.array(img)
-            img_dict = {"img": img, "width": pm.width, "height": pm.height}
-            images.append(img_dict)
+        img = Image.frombytes("RGB", (pm.width, pm.height), pm.samples)
+        logger.debug(f"page {index} rect {page.rect} width: {pm.width}, height: {pm.height}")
+        img = np.array(img)
+        images.append(ImagePixmap(img, pm.width, pm.height))
     return images
 
+def load_images_from_pdf(pdf_bytes: bytes, dpi=200) -> typing.List[ImagePixmap]:
+    with fitz.open("pdf", pdf_bytes) as doc:
+        return process_pdf_pages(doc)
 
 class ModelSingleton:
     _instance = None
@@ -57,14 +59,14 @@ class ModelSingleton:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def get_model(self, ocr: bool, show_log: bool):
-        key = (ocr, show_log)
+    def get_model(self, ocr: bool, ocr_lang: str, show_log: bool):
+        key = (ocr, ocr_lang, show_log)
         if key not in self._models:
-            self._models[key] = custom_model_init(ocr=ocr, show_log=show_log)
+            self._models[key] = custom_model_init(ocr=ocr, ocr_lang=ocr_lang, show_log=show_log)
         return self._models[key]
 
 
-def custom_model_init(ocr: bool = False, show_log: bool = False):
+def custom_model_init(ocr: bool = False, ocr_lang: str = "ch", show_log: bool = False):
     model = None
 
     if model_config.__model_mode__ == "lite":
@@ -79,13 +81,14 @@ def custom_model_init(ocr: bool = False, show_log: bool = False):
         if model == MODEL.Paddle:
             from magic_pdf.model.pp_structure_v2 import CustomPaddleModel
             custom_model = CustomPaddleModel(ocr=ocr, show_log=show_log)
-        elif model == MODEL.PEK:
+        elif model == MODEL.PEK: 
+            #__model_mode__ == "full":
             from magic_pdf.model.pdf_extract_kit import CustomPEKModel
             # 从配置文件读取model-dir和device
             local_models_dir = get_local_models_dir()
             device = get_device()
             table_config = get_table_recog_config()
-            model_input = {"ocr": ocr,
+            model_input = {"ocr": ocr, "ocr_lang": ocr_lang, 
                            "show_log": show_log,
                            "models_dir": local_models_dir,
                            "device": device,
@@ -103,28 +106,29 @@ def custom_model_init(ocr: bool = False, show_log: bool = False):
     return custom_model
 
 
-def doc_analyze(pdf_bytes: bytes, ocr: bool = False, show_log: bool = False,
+def doc_analyze(pdf_bytes: bytes, ocr: bool = False, ocr_lang: str = "ch",
+                show_log: bool = False,
                 start_page_id=0, end_page_id=None):
 
     model_manager = ModelSingleton()
-    custom_model = model_manager.get_model(ocr, show_log)
+    custom_model = model_manager.get_model(ocr, ocr_lang, show_log)
 
     images = load_images_from_pdf(pdf_bytes)
-
+    N = len(images)
     # end_page_id = end_page_id if end_page_id else len(images) - 1
-    end_page_id = end_page_id if end_page_id is not None and end_page_id >= 0 else len(images) - 1
+    end_page_id = end_page_id if end_page_id is not None and end_page_id >= 0 else N - 1
 
-    if end_page_id > len(images) - 1:
+    if end_page_id > N - 1:
         logger.warning("end_page_id is out of range, use images length")
-        end_page_id = len(images) - 1
+        end_page_id = N - 1
 
     model_json = []
     doc_analyze_start = time.time()
 
     for index, img_dict in enumerate(images):
-        img = img_dict["img"]
-        page_width = img_dict["width"]
-        page_height = img_dict["height"]
+        img = img_dict.img
+        page_width = img_dict.width
+        page_height = img_dict.height
         if start_page_id <= index <= end_page_id:
             result = custom_model(img)
         else:

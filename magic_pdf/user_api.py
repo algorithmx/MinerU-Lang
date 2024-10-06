@@ -93,9 +93,10 @@ def parse_union_pdf(pdf_bytes: bytes, pdf_models: list, imageWriter: AbsReaderWr
 
     pdf_info_dict = parse_pdf(parse_pdf_by_txt)
     if pdf_info_dict is None or pdf_info_dict.get("_need_drop", False):
-        logger.warning(f"parse_pdf_by_txt drop or error, switch to parse_pdf_by_ocr")
+        logger.warning("parse_pdf_by_txt drop or error, switch to parse_pdf_by_ocr")
         if input_model_is_empty:
-            pdf_models = doc_analyze(pdf_bytes, ocr=True,
+            ocr_lang = kwargs.get("ocr_lang", "ch")
+            pdf_models = doc_analyze(pdf_bytes, ocr=True, ocr_lang=ocr_lang,
                                      start_page_id=start_page_id,
                                      end_page_id=end_page_id)
         pdf_info_dict = parse_pdf(parse_pdf_by_ocr)

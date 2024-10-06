@@ -14,23 +14,24 @@ from magic_pdf.user_api import parse_union_pdf, parse_ocr_pdf
 class UNIPipe(AbsPipe):
 
     def __init__(self, pdf_bytes: bytes, jso_useful_key: dict, image_writer: AbsReaderWriter, is_debug: bool = False,
-                 start_page_id=0, end_page_id=None):
+                 start_page_id=0, end_page_id=None, ocr_lang: str = "ch"):
         self.pdf_type = jso_useful_key["_pdf_type"]
         super().__init__(pdf_bytes, jso_useful_key["model_list"], image_writer, is_debug, start_page_id, end_page_id)
         if len(self.model_list) == 0:
             self.input_model_is_empty = True
         else:
             self.input_model_is_empty = False
+        self.ocr_lang = ocr_lang
 
     def pipe_classify(self):
         self.pdf_type = AbsPipe.classify(self.pdf_bytes)
 
     def pipe_analyze(self):
         if self.pdf_type == self.PIP_TXT:
-            self.model_list = doc_analyze(self.pdf_bytes, ocr=False,
+            self.model_list = doc_analyze(self.pdf_bytes, ocr=False, ocr_lang = self.ocr_lang,
                                           start_page_id=self.start_page_id, end_page_id=self.end_page_id)
         elif self.pdf_type == self.PIP_OCR:
-            self.model_list = doc_analyze(self.pdf_bytes, ocr=True,
+            self.model_list = doc_analyze(self.pdf_bytes, ocr=True, ocr_lang=self.ocr_lang,
                                           start_page_id=self.start_page_id, end_page_id=self.end_page_id)
 
     def pipe_parse(self):

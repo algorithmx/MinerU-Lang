@@ -11,14 +11,15 @@ from magic_pdf.user_api import parse_txt_pdf
 class TXTPipe(AbsPipe):
 
     def __init__(self, pdf_bytes: bytes, model_list: list, image_writer: AbsReaderWriter, is_debug: bool = False,
-                 start_page_id=0, end_page_id=None):
+                 start_page_id=0, end_page_id=None, ocr_lang: str = "ch"):
         super().__init__(pdf_bytes, model_list, image_writer, is_debug, start_page_id, end_page_id)
+        self.ocr_lang = ocr_lang
 
     def pipe_classify(self):
         pass
 
     def pipe_analyze(self):
-        self.model_list = doc_analyze(self.pdf_bytes, ocr=False,
+        self.model_list = doc_analyze(self.pdf_bytes, ocr=False, ocr_lang = self.ocr_lang,
                                       start_page_id=self.start_page_id, end_page_id=self.end_page_id)
 
     def pipe_parse(self):
