@@ -10,6 +10,13 @@
 
 ---
 
+# Usage
+
+```
+$ magic-pdf -l [lang] -p {some_pdf_in_lang} -o {some_output_dir} 
+
+```
+
 # Changelog (OCR language support)
 ```mermaid
 graph LR
