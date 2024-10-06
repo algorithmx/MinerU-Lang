@@ -3,7 +3,8 @@
 venv*/
 envs/
 slurm_logs/
-
+magic_pdf.egg-info/
+demo/
 sync1.sh
 data_preprocess_pj1
 data-preparation1
