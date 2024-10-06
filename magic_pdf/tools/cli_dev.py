@@ -65,7 +65,15 @@ def cli():
     required=True,
     help='输出到本地目录',
 )
-def jsonl(jsonl, method, output_dir):
+@click.option(
+    '-l',
+    '--language',
+    'ocr_lang',
+    type=str,
+    help='The OCR language used for OCR processing.',
+    default='ch',
+)
+def jsonl(jsonl, method, output_dir, ocr_lang):
     model_config.__use_inside_model__ = False
     if jsonl.startswith('s3://'):
         jso = json_parse.loads(read_s3_path(jsonl).decode('utf-8'))
@@ -89,6 +97,7 @@ def jsonl(jsonl, method, output_dir):
         False,
         f_dump_content_list=True,
         f_draw_model_bbox=True,
+        ocr_lang=ocr_lang,
     )
 
 
@@ -123,7 +132,15 @@ def jsonl(jsonl, method, output_dir):
     help='指定解析方法。txt: 文本型 pdf 解析方法， ocr: 光学识别解析 pdf, auto: 程序智能选择解析方法',
     default='auto',
 )
-def pdf(pdf, json_data, output_dir, method):
+@click.option(
+    '-l',
+    '--language',
+    'ocr_lang',
+    type=str,
+    help='The OCR language used for OCR processing.',
+    default='ch',
+)
+def pdf(pdf, json_data, output_dir, method, ocr_lang):
     model_config.__use_inside_model__ = False
     full_pdf_path = os.path.realpath(pdf)
     os.makedirs(output_dir, exist_ok=True)
@@ -145,6 +162,7 @@ def pdf(pdf, json_data, output_dir, method):
         False,
         f_dump_content_list=True,
         f_draw_model_bbox=True,
+        ocr_lang=ocr_lang,
     )
 
 

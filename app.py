@@ -20,6 +20,8 @@ import gradio as gr
 from gradio_pdf import PDF
 
 
+LANGUAGE = "ch"
+
 def read_fn(path):
     disk_rw = DiskReaderWriter(os.path.dirname(path))
     return disk_rw.read(os.path.basename(path), AbsReaderWriter.MODE_BIN)
@@ -41,6 +43,7 @@ def parse_pdf(doc_path, output_dir, end_page_id):
             parse_method,
             False,
             end_page_id=end_page_id,
+            ocr_lang=LANGUAGE,
         )
         return local_md_dir, file_name
     except Exception as e:
@@ -95,18 +98,18 @@ def replace_image_with_base64(markdown_text, image_dir_path):
 def to_markdown(file_path, end_pages):
     # 获取识别的md文件以及压缩包文件路径
     local_md_dir, file_name = parse_pdf(file_path, './output', end_pages - 1)
-    archive_zip_path = os.path.join("./output", compute_sha256(local_md_dir) + ".zip")
+    archive_zip_path = os.path.join("./output", f"{compute_sha256(local_md_dir)}.zip")
     zip_archive_success = compress_directory_to_zip(local_md_dir, archive_zip_path)
     if zip_archive_success == 0:
         logger.info("压缩成功")
     else:
         logger.error("压缩失败")
-    md_path = os.path.join(local_md_dir, file_name + ".md")
+    md_path = os.path.join(local_md_dir, f"{file_name}.md")
     with open(md_path, 'r', encoding='utf-8') as f:
         txt_content = f.read()
     md_content = replace_image_with_base64(txt_content, local_md_dir)
     # 返回转换后的PDF路径
-    new_pdf_path = os.path.join(local_md_dir, file_name + "_layout.pdf")
+    new_pdf_path = os.path.join(local_md_dir, f"{file_name}_layout.pdf")
 
     return md_content, txt_content, archive_zip_path, new_pdf_path
 
@@ -123,21 +126,21 @@ latex_delimiters = [{"left": "$$", "right": "$$", "display": True},
                     {"left": '$', "right": '$', "display": False}]
 
 
-def init_model():
+def init_model(ocr_lang):
     from magic_pdf.model.doc_analyze_by_custom_model import ModelSingleton
     try:
         model_manager = ModelSingleton()
-        txt_model = model_manager.get_model(False, False)
-        logger.info(f"txt_model init final")
-        ocr_model = model_manager.get_model(True, False)
-        logger.info(f"ocr_model init final")
+        txt_model = model_manager.get_model(False, ocr_lang, False)
+        logger.info("txt_model init final")
+        ocr_model = model_manager.get_model(True, ocr_lang, False)
+        logger.info("ocr_model init final")
         return 0
     except Exception as e:
         logger.exception(e)
         return -1
 
 
-model_init = init_model()
+model_init = init_model(LANGUAGE)
 logger.info(f"model_init: {model_init}")
 
 

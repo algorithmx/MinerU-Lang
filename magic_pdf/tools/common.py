@@ -25,7 +25,7 @@ def prepare_env(output_dir, pdf_file_name, method):
     os.makedirs(local_md_dir, exist_ok=True)
     return local_image_dir, local_md_dir
 
-
+# sourcery complains low quality code
 def do_parse(
     output_dir,
     pdf_file_name,
@@ -44,6 +44,7 @@ def do_parse(
     f_draw_model_bbox=False,
     start_page_id=0,
     end_page_id=None,
+    ocr_lang="ch",
 ):
     if debug_able:
         logger.warning('debug mode is on')
@@ -61,13 +62,13 @@ def do_parse(
     if parse_method == 'auto':
         jso_useful_key = {'_pdf_type': '', 'model_list': model_list}
         pipe = UNIPipe(pdf_bytes, jso_useful_key, image_writer, is_debug=True,
-                       start_page_id=start_page_id, end_page_id=end_page_id)
+                       start_page_id=start_page_id, end_page_id=end_page_id, ocr_lang=ocr_lang)
     elif parse_method == 'txt':
         pipe = TXTPipe(pdf_bytes, model_list, image_writer, is_debug=True,
-                       start_page_id=start_page_id, end_page_id=end_page_id)
+                       start_page_id=start_page_id, end_page_id=end_page_id, ocr_lang=ocr_lang)
     elif parse_method == 'ocr':
         pipe = OCRPipe(pdf_bytes, model_list, image_writer, is_debug=True,
-                       start_page_id=start_page_id, end_page_id=end_page_id)
+                       start_page_id=start_page_id, end_page_id=end_page_id, ocr_lang=ocr_lang)
     else:
         logger.error('unknown parse method')
         exit(1)

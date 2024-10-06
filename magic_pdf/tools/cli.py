@@ -68,7 +68,15 @@ without method specified, auto will be used by default.""",
     help='The ending page for PDF parsing, beginning from 0.',
     default=None,
 )
-def cli(path, output_dir, method, debug_able, start_page_id, end_page_id):
+@click.option(
+    '-l',
+    '--language',
+    'ocr_lang',
+    type=str,
+    help='The OCR language used for OCR processing.',
+    default='ch',
+)
+def cli(path, output_dir, method, debug_able, start_page_id, end_page_id, ocr_lang):
     model_config.__use_inside_model__ = True
     model_config.__model_mode__ = 'full'
     os.makedirs(output_dir, exist_ok=True)
@@ -90,6 +98,7 @@ def cli(path, output_dir, method, debug_able, start_page_id, end_page_id):
                 debug_able,
                 start_page_id=start_page_id,
                 end_page_id=end_page_id,
+                ocr_lang=ocr_lang,
             )
 
         except Exception as e:
