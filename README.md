@@ -1,3 +1,27 @@
+<div xmlns="http://www.w3.org/1999/html">
+<h3 align="left">Adding the LANG option to CLI to expose the PaddleOCR <code>lang</code> option</h3>
+
+<h3 align="left">USE PYTHON==3.10 !!!</h3>
+<h3 align="left">USE PYTHON==3.10 !!!</h3>
+<h3 align="left">USE PYTHON==3.10 !!!</h3>
+<h3 align="left"><p>the detectron2 library requires python==3.10 </p>
+ <a href="https://github.com/opendatalab/MinerU/issues/473">[issue discussion]</a></h3>
+</div>
+
+---
+
+# Changelog (OCR language support)
+```mermaid
+graph LR
+  A["get_model"] --> B["doc_analyze"] --> C["parse_union_pdf"]
+  B["doc_analyze"] --> D1["OCRPipe.model_list"]
+  B["doc_analyze"] --> D2["TXTPipe.model_list"]
+  B["doc_analyze"] --> D3["UNIPipe.model_list"]
+
+```
+
+---
+
 <div align="center" xmlns="http://www.w3.org/1999/html">
 <!-- logo -->
 <p align="center">
