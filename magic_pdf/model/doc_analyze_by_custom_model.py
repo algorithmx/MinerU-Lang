@@ -41,7 +41,6 @@ def process_pdf_pages(doc):
         pm = page.get_pixmap(matrix=fitz.Matrix(4, 4), alpha=False)
 
         img = Image.frombytes("RGB", (pm.width, pm.height), pm.samples)
-        logger.debug(f"page {index} rect {page.rect} width: {pm.width}, height: {pm.height}")
         img = np.array(img)
         images.append(ImagePixmap(img, pm.width, pm.height))
     return images

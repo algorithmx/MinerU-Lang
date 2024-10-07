@@ -5,17 +5,18 @@ import cv2
 import numpy as np
 from io import BytesIO
 from PIL import Image
-
+import matplotlib.pyplot as plt
+import typing
 from paddleocr import PaddleOCR
-from paddleocr.ppocr.utils.logging import get_logger
+#from paddleocr.ppocr.utils.logging import get_logger
 from paddleocr.ppocr.utils.utility import check_and_read, alpha_to_color, binarize_img
 from paddleocr.tools.infer.utility import draw_ocr_box_txt, get_rotate_crop_image, get_minarea_rect_crop
 
 from magic_pdf.libs.boxbase import __is_overlaps_y_exceeds_threshold
 from magic_pdf.pre_proc.ocr_dict_merge import merge_spans_to_line
 
-logger = get_logger()
-
+#logger = get_logger()
+from loguru import logger
 
 def img_decode(content: bytes):
     np_arr = np.frombuffer(content, dtype=np.uint8)
@@ -243,11 +244,29 @@ def merge_det_boxes(dt_boxes):
     return new_dt_boxes
 
 
+def remove_isolated_dots(image):
+    # Convert to grayscale if the image is colored
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
+    # Apply binary threshold using Otsu's method
+    _, binary_image = cv2.threshold(gray_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # Use a 3x3 kernel for morphological operations
+    kernel = np.ones((5, 5), np.uint8)
+    # Perform morphological opening in-place
+    cv2.morphologyEx(binary_image, cv2.MORPH_OPEN, kernel, dst=binary_image)
+    # Find connected components with stats
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary_image, connectivity=8)
+    # Create a mask for components with area >= 6
+    mask = (stats[1:, cv2.CC_STAT_AREA] >= 6).reshape(-1, 1, 1)
+    # Apply the mask to keep only components with area >= 6
+    output_image = np.where(mask[labels[..., np.newaxis] - 1], 255, 0).astype(np.uint8)
+    return output_image
+
+
 class ModifiedPaddleOCR(PaddleOCR):
-    def ocr(self, img, det=True, rec=True, cls=True, bin=False, inv=False, mfd_res=None, alpha_color=(255, 255, 255)):
+    def ocr(self, img, det=True, rec=True, cls=True, bin=False, inv=False, mfd_res=None, alpha_color=(255, 255, 255)) -> list:
         """
         OCR with PaddleOCR
-        args：
+        args:
             img: img for OCR, support ndarray, img_path and list or ndarray
             det: use text detection or not. If False, only rec will be exec. Default is True
             rec: use text recognition or not. If False, only det will be exec. Default is True
@@ -267,7 +286,7 @@ class ModifiedPaddleOCR(PaddleOCR):
             # )
 
         img = check_img(img)
-        # for infer pdf file
+        # for infer pdf file #WTF is this?
         if isinstance(img, list):
             if self.page_num > len(img) or self.page_num == 0:
                 self.page_num = len(img)
@@ -276,15 +295,24 @@ class ModifiedPaddleOCR(PaddleOCR):
             imgs = [img]
 
         def preprocess_image(_image):
+            (width0, height0) = (_image.shape[1], _image.shape[0])
             _image = alpha_to_color(_image, alpha_color)
+
+            # upscale => high contrast => denoise => downscale
+            _image = cv2.resize(_image, (_image.shape[1] * 2, _image.shape[0] * 2), interpolation=cv2.INTER_LINEAR)
+            _image = cv2.convertScaleAbs(_image, alpha=1.5, beta=0)
+            _image = cv2.fastNlMeansDenoisingColored(_image, None, 10, 10, 7, 15)
+            _image = cv2.resize(_image, (width0, height0), interpolation=cv2.INTER_LINEAR)
+
             if inv:
                 _image = cv2.bitwise_not(_image)
             if bin:
                 _image = binarize_img(_image)
             return _image
 
+        ocr_res = []
+        cls_res = []
         if det and rec:
-            ocr_res = []
             for idx, img in enumerate(imgs):
                 img = preprocess_image(img)
                 dt_boxes, rec_res, _ = self.__call__(img, cls, mfd_res=mfd_res)
@@ -294,9 +322,7 @@ class ModifiedPaddleOCR(PaddleOCR):
                 tmp_res = [[box.tolist(), res]
                            for box, res in zip(dt_boxes, rec_res)]
                 ocr_res.append(tmp_res)
-            return ocr_res
         elif det and not rec:
-            ocr_res = []
             for idx, img in enumerate(imgs):
                 img = preprocess_image(img)
                 dt_boxes, elapse = self.text_detector(img)
@@ -305,10 +331,7 @@ class ModifiedPaddleOCR(PaddleOCR):
                     continue
                 tmp_res = [box.tolist() for box in dt_boxes]
                 ocr_res.append(tmp_res)
-            return ocr_res
         else:
-            ocr_res = []
-            cls_res = []
             for idx, img in enumerate(imgs):
                 if not isinstance(img, list):
                     img = preprocess_image(img)
@@ -321,13 +344,13 @@ class ModifiedPaddleOCR(PaddleOCR):
                 ocr_res.append(rec_res)
             if not rec:
                 return cls_res
-            return ocr_res
+        return ocr_res
 
     def __call__(self, img, cls=True, mfd_res=None):
         time_dict = {'det': 0, 'rec': 0, 'cls': 0, 'all': 0}
 
         if img is None:
-            logger.debug("no valid image provided")
+            logger.error("no valid image provided")
             return None, None, time_dict
 
         start = time.time()
@@ -336,13 +359,13 @@ class ModifiedPaddleOCR(PaddleOCR):
         time_dict['det'] = elapse
 
         if dt_boxes is None:
-            logger.debug("no dt_boxes found, elapsed : {}".format(elapse))
+            #logger.debug("no dt_boxes found, elapsed : {}".format(elapse))
             end = time.time()
             time_dict['all'] = end - start
             return None, None, time_dict
         else:
-            logger.debug("dt_boxes num : {}, elapsed : {}".format(
-                len(dt_boxes), elapse))
+            #logger.debug(f"dt_boxes num : {len(dt_boxes)}, elapsed : {elapse}")
+            pass
         img_crop_list = []
 
         dt_boxes = sorted_boxes(dt_boxes)
@@ -353,8 +376,7 @@ class ModifiedPaddleOCR(PaddleOCR):
             bef = time.time()
             dt_boxes = update_det_boxes(dt_boxes, mfd_res)
             aft = time.time()
-            logger.debug("split text box by formula, new dt_boxes num : {}, elapsed : {}".format(
-                len(dt_boxes), aft - bef))
+            #logger.debug(f"split text box by formula, new dt_boxes num : {len(dt_boxes)}, elapsed : {aft - bef}")
 
         for bno in range(len(dt_boxes)):
             tmp_box = copy.deepcopy(dt_boxes[bno])
@@ -367,16 +389,13 @@ class ModifiedPaddleOCR(PaddleOCR):
             img_crop_list, angle_list, elapse = self.text_classifier(
                 img_crop_list)
             time_dict['cls'] = elapse
-            logger.debug("cls num  : {}, elapsed : {}".format(
-                len(img_crop_list), elapse))
+            # logger.debug(f"cls num  : {len(img_crop_list)}, elapsed : {elapse}")
 
         rec_res, elapse = self.text_recognizer(img_crop_list)
         time_dict['rec'] = elapse
-        logger.debug("rec_res num  : {}, elapsed : {}".format(
-            len(rec_res), elapse))
+        # logger.debug(f"rec_res num  : {len(rec_res)}, elapsed : {elapse}")
         if self.args.save_crop_res:
-            self.draw_crop_rec_res(self.args.crop_res_save_dir, img_crop_list,
-                                   rec_res)
+            self.draw_crop_rec_res(self.args.crop_res_save_dir, img_crop_list,rec_res)
         filter_boxes, filter_rec_res = [], []
         for box, rec_result in zip(dt_boxes, rec_res):
             text, score = rec_result
