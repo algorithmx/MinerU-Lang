@@ -17,6 +17,14 @@ $ magic-pdf -l [lang] -p {some_pdf_in_lang} -o {some_output_dir}
 
 ```
 
+# Plans
+
+- [ ] 1. Image preprocessing for better OCR results (started)
+- [ ] 2. In-place improvements of OCR texts and translation via LLM
+- [ ] 3. Manual adjustment of layout boundaries, react-app deployment surplace (started)
+- [ ] 4. Compilation of recognition failures and human improvements to the model
+
+
 # Changelog (OCR language support)
 ```mermaid
 graph LR
