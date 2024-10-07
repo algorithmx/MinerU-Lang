@@ -250,7 +250,7 @@ class CustomPEKModel:
 
         logger.info('DocAnalysis init done!')
 
-    def score_statistics(self, layout_res):
+    def text_recognition_score_statistics(self, layout_res):
         scores = [l['score'] for l in layout_res if 'text' in l and 'score' in l]
         return np.percentile(scores, [0, 25, 50, 75, 100])
 
@@ -377,8 +377,8 @@ class CustomPEKModel:
 
             ocr_cost = round(time.time() - ocr_start, 2)
             logger.info(f"ocr cost: {ocr_cost}")
-            score_stat = self.score_statistics(layout_res)
-            logger.debug(f"ocr score statistics: Min: {score_stat[0]:.2f}, Max: {score_stat[-1]:.2f}, Avg: {score_stat[2]:.2f}, Q1: {score_stat[1]:.2f}, Q3: {score_stat[-2]:.2f}")
+            score_stat = self.text_recognition_score_statistics(layout_res)
+            logger.debug(f"Text ocr score statistics: Min:{score_stat[0]:.2f},Max:{score_stat[-1]:.2f},Avg:{score_stat[2]:.2f},Q1:{score_stat[1]:.2f},Q3:{score_stat[-2]:.2f}")
 
         # 表格识别 table recognition
         if self.apply_table:
